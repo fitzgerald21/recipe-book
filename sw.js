@@ -1,7 +1,8 @@
 // Offline support: app files are served network-first so updates show up right
 // away, with the cached copy used when there's no signal (e.g. in the kitchen).
-// API calls and other sites are never cached.
-const CACHE = 'recipe-book-v1';
+// API calls and other sites are never cached, except the Firebase SDK (versioned, so
+// safe to keep), which the app needs before it can open.
+const CACHE = 'recipe-book-v2';
 const FILES = [
   './',
   'index.html',
@@ -9,12 +10,18 @@ const FILES = [
   'js/app.js',
   'js/ai.js',
   'js/defaults.js',
+  'js/firebase-config.js',
+  'js/firebase-store.js',
   'js/importers.js',
   'js/settings.js',
   'js/store.js',
   'manifest.webmanifest',
   'icons/apple-touch-icon.png',
   'icons/icon-192.png',
+  // Keep the version in step with SDK in js/firebase-store.js.
+  'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js',
+  'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js',
+  'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js',
 ];
 
 self.addEventListener('install', (e) => {
@@ -31,7 +38,8 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  const firebaseSdk = url.hostname === 'www.gstatic.com' && url.pathname.startsWith('/firebasejs/');
+  if (e.request.method !== 'GET' || (url.origin !== location.origin && !firebaseSdk)) return;
   e.respondWith(
     fetch(e.request)
       .then((res) => {

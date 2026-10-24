@@ -7,7 +7,8 @@ A phone-first recipe book. Paste a link, an email, or snap a photo of a recipe c
 ## Install on iPhone
 1. Open the link above in **Safari**.
 2. Tap **Share**, then **Add to Home Screen**.
-3. Open **Recipes** from your home screen, tap ⚙︎, and paste an API key.
+3. Open **Recipes** from your home screen and sign in with Google.
+4. Tap ⚙︎ and paste an API key.
 
 ## Adding recipes
 - **🔗 Link**: paste any recipe page. The app reads the page and drops the ads and life story.
@@ -30,11 +31,12 @@ Settings has three providers. Pick one as **Main**, and if it fails the app can 
 
 You can type any model id. DeepSeek V4.1 Flash reads photos too.
 
-## Where data lives
-Recipes are stored on the phone (IndexedDB). API keys are stored on the phone (localStorage) and only sent to the provider you chose. Use **Settings → Export backup** now and then.
+## Accounts and where data lives
+Anyone can sign in with a Google account and gets their own recipe book. Recipes are stored in Firebase (Cloud Firestore) under that account, so they sync across devices and still work offline. Recipes saved on a phone before sign-in move into the account the first time it signs in there.
 
-### Firebase later
-All storage goes through one interface (`js/store.js`). `js/firebase-store.js` is a ready Firestore adapter with the same methods. It isn't switched on yet; the steps are at the top of that file.
+API keys are stored on the phone (localStorage) and only sent to the provider you chose. They are never synced.
+
+Firebase setup, the data model and the shared security rules are described in [FIREBASE.md](FIREBASE.md).
 
 ## Code
 Plain HTML/CSS/JS with no build step. GitHub Pages serves the repo root.
@@ -42,6 +44,8 @@ Plain HTML/CSS/JS with no build step. GitHub Pages serves the repo root.
 - `js/app.js`: screens and navigation
 - `js/ai.js`: prompt and provider calls
 - `js/importers.js`: link fetching (via public reader proxies) and photo resizing
-- `js/store.js`: local storage adapter
+- `js/store.js`: storage interface (and the old on-device adapter)
+- `js/firebase-store.js`: Google sign-in and the Firestore adapter
+- `js/firebase-config.js`: Firebase web app config
 - `js/defaults.js`: starting categories and model presets
 - `sw.js`: offline support

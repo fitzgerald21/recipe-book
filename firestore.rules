@@ -1,0 +1,56 @@
+rules_version = '2';
+// SHARED FILE: this database serves every app in the come-back-fitz21 Firebase project (Come back, Little Bites, One Line a Day and Recipe Book).
+// Firestore has one ruleset per database, so keep this file IDENTICAL in all four repos; deploying from any one is then safe.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Come back: each signed-in user can read and write only their own document ---
+    match /users/{uid} {
+      match /sessions/{sid} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // --- Little Bites: only the owner's own babies, logs and custom foods, and only for the allowed account ---
+    match /users/{uid}/babies/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid
+        && request.auth.token.email == 'fitzgeraldryan21@gmail.com' && request.auth.token.email_verified == true;
+    }
+
+    // --- One Line a Day: one document per day, and synced settings, under the owner's own uid, and only for the allowed account ---
+    match /users/{uid}/entries/{day} {
+      allow read, delete: if isOlad(uid);
+      allow create, update: if isOlad(uid)
+        && day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 20000;
+    }
+    match /users/{uid}/settings/{doc} {
+      allow read, write: if isOlad(uid);
+    }
+    function isOlad(uid) {
+      return request.auth != null && request.auth.uid == uid
+        && request.auth.token.email == 'fitzgeraldryan21@gmail.com' && request.auth.token.email_verified == true;
+    }
+
+    // --- Recipe Book: open to anyone who signs in; each account reads and writes only its own recipes and categories ---
+    match /users/{uid}/recipes/{id} {
+      allow read, delete: if isSelf(uid);
+      allow create, update: if isSelf(uid)
+        && request.resource.data.id == id
+        && request.resource.data.title is string
+        && request.resource.data.title.size() <= 500;
+    }
+    match /users/{uid}/recipeCategories/{id} {
+      allow read, delete: if isSelf(uid);
+      allow create, update: if isSelf(uid)
+        && request.resource.data.id == id
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 200;
+    }
+    function isSelf(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

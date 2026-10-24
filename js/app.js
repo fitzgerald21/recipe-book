@@ -1,4 +1,5 @@
-import { store, newId } from './store.js';
+import { store, newId, setStore, LocalStore } from './store.js';
+import { FirebaseStore, account } from './firebase-store.js';
 import { PROVIDERS } from './defaults.js';
 import { getSettings, saveSettings } from './settings.js';
 import { convertRecipe, testProvider } from './ai.js';
@@ -104,6 +105,7 @@ let addTab = 'link';
 let addPhotos = [];      // data URLs for the photo import tab
 let searchQuery = '';
 let wakeLock = null;
+let user = null;         // the signed-in Google account
 
 // ---------- views ----------
 async function viewHome() {
@@ -541,6 +543,16 @@ async function viewSettings() {
   app.innerHTML = `
     ${header({ title: 'Settings', back: '#/' })}
     <main class="page form">
+      <h2 class="section">Account</h2>
+      <div class="account">
+        <div class="account-who">
+          <strong>${esc(user.displayName || user.email)}</strong>
+          ${user.displayName ? `<span class="muted">${esc(user.email)}</span>` : ''}
+        </div>
+        <button class="btn secondary" id="sign-out">Sign out</button>
+      </div>
+      <p class="hint">Your recipes are saved to this Google account and show up on any device you sign in on.</p>
+
       <h2 class="section">AI for reading recipes</h2>
       <p class="hint">Keys are saved only on this phone. Pick which service to use first.</p>
       <div class="segmented">
@@ -578,7 +590,7 @@ async function viewSettings() {
       <button class="btn secondary block" id="add-cat">＋ Add category</button>
 
       <h2 class="section">Backup</h2>
-      <p class="hint">Recipes are saved on this phone. Export a backup now and then (save it to Files or iCloud Drive). Cloud sync with Firebase is planned.</p>
+      <p class="hint">Your recipes are kept in your account, but a backup file of your own never hurts (save it to Files or iCloud Drive).</p>
       <div class="row">
         <button class="btn secondary" id="export">Export backup</button>
         <label class="btn secondary file-inline">Import backup<input id="import" type="file" accept=".json,application/json"></label>
@@ -589,6 +601,13 @@ async function viewSettings() {
     </main>`;
 
   const persist = () => saveSettings(s);
+
+  $('#sign-out').addEventListener('click', async () => {
+    if (!confirm('Sign out? Your recipes stay in your account.')) return;
+    await account.signOut();
+    location.hash = '';
+    location.reload();
+  });
 
   $$('[data-provider]').forEach((b) => b.addEventListener('click', () => { s.provider = b.dataset.provider; persist(); viewSettings(); }));
   $$('[data-key]').forEach((i) => i.addEventListener('change', () => { s.keys[i.dataset.key] = i.value.trim(); persist(); }));
@@ -678,6 +697,39 @@ async function viewSettings() {
   });
 }
 
+// ---------- sign in ----------
+/** Shown until someone signs in. Resolves with the user. */
+function viewSignIn() {
+  app.innerHTML = `
+    <main class="page signin">
+      <div class="empty-emoji">📖</div>
+      <h1 class="signin-title">Recipe Book</h1>
+      <p class="muted">Paste a link, an email, or snap a photo of a recipe card, and get a clean, easy-to-read recipe.</p>
+      <p class="muted">Sign in with Google to open your recipe book. Your recipes are saved to your account and show up on every device you sign in on.</p>
+      <button class="btn primary block" id="sign-in">Continue with Google</button>
+      <div id="error" class="error" hidden></div>
+    </main>`;
+  return new Promise((resolve) => {
+    const btn = $('#sign-in');
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      $('#error').hidden = true;
+      try {
+        const u = await account.signIn();
+        if (u) resolve(u); // null: the page is leaving for a full-page sign-in
+        else btn.disabled = false;
+      } catch (e) {
+        btn.disabled = false;
+        if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
+        $('#error').hidden = false;
+        $('#error').textContent = e.code === 'auth/network-request-failed' || !e.code
+          ? 'Couldn\'t reach Google. Check your connection and try again.'
+          : `Couldn't sign in (${e.code}). Try again.`;
+      }
+    });
+  });
+}
+
 // ---------- router ----------
 async function route() {
   const [path] = location.hash.replace(/^#/, '').split('?');
@@ -694,7 +746,6 @@ async function route() {
   }
 }
 
-window.addEventListener('hashchange', route);
 document.addEventListener('visibilitychange', async () => {
   // iOS drops the wake lock when the app is backgrounded; take it again on return.
   if (document.visibilityState === 'visible' && wakeLock === null && sessionStorage.getItem('wake') === '1') {
@@ -703,12 +754,25 @@ document.addEventListener('visibilitychange', async () => {
 });
 
 (async () => {
-  await store.init();
-  // Let recipes arriving from another device (future Firebase sync) refresh list screens.
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  user = await account.current().catch(() => null); // null also when Firebase can't load (offline on first open)
+  if (!user) user = await viewSignIn();
+  try {
+    await setStore(new FirebaseStore(user, {
+      migrateFrom: new LocalStore(),
+      onMigrated: ({ recipes }) => toast(`Moved ${recipes} ${recipes === 1 ? 'recipe' : 'recipes'} from this device into your account`),
+      onError: (e) => { console.error(e); toast(`Couldn't save to your account: ${e.code || e.message}`); },
+    }));
+  } catch (e) {
+    console.error(e);
+    app.innerHTML = `<main class="page"><div class="error">Couldn't open your recipe book (${esc(e.code || e.message)}). Close the app and try again.</div></main>`;
+    return;
+  }
+  // Let recipes arriving from another device refresh list screens.
   store.onChange(() => {
     const p = location.hash.replace(/^#\/?/, '').split('/')[0];
     if (p === '' || p === 'category') route();
   });
+  window.addEventListener('hashchange', route);
   route();
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();

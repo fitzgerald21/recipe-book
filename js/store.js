@@ -1,10 +1,11 @@
 // Storage layer.
 //
-// Every part of the app talks to storage through the `Store` interface below,
-// never to IndexedDB directly. That keeps the door open for Firebase: write a
-// second adapter with the same methods (see firebase-store.js) and swap it in
-// via `setStore()`. All methods are async, and records are plain JSON objects
-// with string ids and ISO timestamps, which map 1:1 onto Firestore documents.
+// Every part of the app talks to storage through the `store` proxy below, never
+// to an adapter directly. The app signs in and swaps in FirebaseStore
+// (firebase-store.js) via `setStore()`; LocalStore is the on-device adapter that
+// came first, and is now only read once to move its recipes into the account.
+// All methods are async, and records are plain JSON objects with string ids and
+// ISO timestamps, which map 1:1 onto Firestore documents.
 //
 // Collections:
 //   categories: { id, name, parentId|null, order, emoji, createdAt, updatedAt }
@@ -23,7 +24,7 @@ export function newId() {
 const now = () => new Date().toISOString();
 
 /** IndexedDB adapter: data lives on this device only. */
-class LocalStore {
+export class LocalStore {
   constructor(dbName = 'recipe-book') {
     this.dbName = dbName;
     this.listeners = new Set();
@@ -162,7 +163,7 @@ export const store = new Proxy({}, {
   },
 });
 
-/** Swap the backing adapter (e.g. to Firebase). The new adapter must implement the same methods. */
+/** Swap the backing adapter (to Firebase, after sign-in). The new adapter must implement the same methods. */
 export async function setStore(adapter) {
   current = adapter;
   await current.init();

@@ -1,0 +1,18 @@
+rules_version = '2';
+// SHARED FILE: keep identical in the Come back, Little Bites, One Line a Day and Recipe Book repos (one ruleset per Storage bucket).
+// Little Bites meal photos. Private: only the allowed, signed-in owner can read or write their own folder.
+// The app resizes photos to a 1280px JPEG (plus a 240px thumbnail), so 1 MB is far above what it ever uploads.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{uid}/{allPaths=**} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && request.resource.size < 1024 * 1024
+        && request.resource.contentType == 'image/jpeg';
+    }
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid
+        && request.auth.token.email == 'fitzgeraldryan21@gmail.com' && request.auth.token.email_verified == true;
+    }
+  }
+}

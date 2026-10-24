@@ -192,7 +192,16 @@ textarea { resize: vertical; line-height: 1.4; }
 .spinner { width: 18px; height: 18px; border: 2.5px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; flex: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ---------- sign in ---------- */
+.signin { max-width: 420px; text-align: center; padding-top: calc(env(safe-area-inset-top) + 15vh); }
+.signin-title { font-size: 30px; margin: 8px 0 12px; }
+.signin .muted { margin: 8px 0; }
+
 /* ---------- settings ---------- */
+.account { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); }
+.account-who { display: flex; flex-direction: column; min-width: 0; }
+.account-who > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-who .muted { font-size: 14px; }
 .provider-card { background: var(--surface); border-radius: var(--radius); padding: 4px 14px 14px; margin-top: 12px; box-shadow: var(--shadow); border: 2px solid transparent; }
 .provider-card.active { border-color: var(--accent); }
 .provider-head { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
